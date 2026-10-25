@@ -1,13 +1,19 @@
-Vinkällarmästaren – Excel-export
-- Importera Excel (.xlsx)
-- Exportera Excel (.xlsx) med bladen Vinkällare, Provningshistorik och Upptäckta viner
-- JSON-säkerhetskopia finns kvar separat
-- CSV-exportknappen är borttagen
+Vinkällarmästaren – inköpsställe
+Ändringar:
+- Nytt fält Inköpsställe: Cavarosa eller Systembolaget.
+- Visas på varje vinkort.
+- Följer med i Excel-exporten och läses vid Excel-import.
+- Befintliga viner får automatiskt inköpsställe enligt användarens lista:
+  VIN-0001, 0002, 0003, 0004, 0006, 0007, 0009 = Cavarosa
+  VIN-0005, 0008 = Systembolaget
+- Saknade inköpsställen i befintlig lokal data kompletteras automatiskt utan att radera övriga uppgifter.
+- Standardförvaring sätts till Vinkyl om den saknas.
 
 Installera:
-1. Öppna GitHub-repositoryt Vinkallarmastaren.
-2. Ersätt den befintliga index.html med den här index.html.
-3. Spara/Commit changes.
-4. Uppdatera appen på iPhone.
+1. Gör först en JSON-säkerhetskopia i appen.
+2. Ersätt index.html i GitHub-repositoryt med den här filen och spara ändringen.
+3. Öppna appen i Safari och uppdatera sidan. Om den gamla versionen visas, stäng fliken helt och öppna igen.
+4. Kontrollera att inköpsställe visas på vinkorten.
+5. Exportera Excel och kontrollera kolumnen Inköpsställe.
 
-Obs: data sparas lokalt i webbläsaren; automatisk iCloud-synkronisering finns inte. Excel-biblioteket laddas från jsDelivr. Kontrollera exporterad arbetsbok innan du använder den som enda kopia.
+Obs: appen sparar fortfarande data lokalt i webbläsaren och synkroniserar inte automatiskt med iCloud. Den här ändringen ska inte återställa eller radera befintliga lokala viner.
