@@ -34,7 +34,7 @@ form{display:grid;gap:12px}.field{display:grid;gap:5px}.field label{font-size:13
 </main>
 <div class="bottom"><button class="primary" id="bottomAction">＋ Lägg till vin</button></div>
 <input type="file" accept="application/json" id="importFile" class="hide">
-<input type="file" accept=".xlsx,.xls" id="excelFile" class="hide">
+<input type="file" accept="*/*" id="excelFile" class="hide">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
 const seed=[];
@@ -96,7 +96,7 @@ function importExcelWorkbook(wb){
  if(dr.length>1){const dh=dr[0];for(const r of dr.slice(1)){const name=joinName(cell(r,dh,["producent"]),cell(r,dh,["vin"]));if(name==="Vin utan namn")continue;discovered.push({name,where:String(cell(r,dh,["var provat?","var provade du det?","plats"])||"").trim(),date:excelDate(cell(r,dh,["datum"])),rating:String(cell(r,dh,["helhetsbetyg (1–5)","helhetsbetyg (1-5)","betyg"] )||"").trim(),notes:String([cell(r,dh,["smaknotering","smaknoteringar"]),cell(r,dh,["passade till mat?"])].filter(Boolean).join("; ")),buyAgain:String(cell(r,dh,["skulle köpa själv?","köpa själv","skulle köpa igen?"])||"").trim()});}}
  return {wines,tastings,discovered};
 }
-$("#excelFile").onchange=async e=>{const f=e.target.files[0];if(!f)return;try{if(!window.XLSX)throw Error("Excel-läsaren kunde inte laddas. Kontrollera internetanslutningen och försök igen.");const buf=await f.arrayBuffer();const wb=XLSX.read(buf,{type:"array",cellDates:true});const imported=importExcelWorkbook(wb);if(!imported.wines.length)throw Error('Inga viner hittades i bladet "Vinkällare".');if(confirm(`Excel-filen innehåller ${imported.wines.length} viner, ${imported.wines.reduce((n,w)=>n+(Number(w.qty)||0),0)} flaskor, ${imported.tastings.length} provningsrader och ${imported.discovered.length} upptäckta viner.\n\nErsätta motsvarande data i appen med innehållet från Excel?`)){data=imported;save();tab="cellar";query="";render();alert("Excel-importen är klar.");}}catch(err){alert("Excel-filen kunde inte importeras: "+err.message)}e.target.value=""};
+$("#excelFile").onchange=async e=>{const f=e.target.files[0];if(!f)return;if(!/\.xlsx?$/i.test(f.name)){alert("Välj en Excel-fil som slutar på .xlsx eller .xls.");e.target.value="";return;}try{if(!window.XLSX)throw Error("Excel-läsaren kunde inte laddas. Kontrollera internetanslutningen och försök igen.");const buf=await f.arrayBuffer();const wb=XLSX.read(buf,{type:"array",cellDates:true});const imported=importExcelWorkbook(wb);if(!imported.wines.length)throw Error('Inga viner hittades i bladet "Vinkällare".');if(confirm(`Excel-filen innehåller ${imported.wines.length} viner, ${imported.wines.reduce((n,w)=>n+(Number(w.qty)||0),0)} flaskor, ${imported.tastings.length} provningsrader och ${imported.discovered.length} upptäckta viner.\n\nErsätta motsvarande data i appen med innehållet från Excel?`)){data=imported;save();tab="cellar";query="";render();alert("Excel-importen är klar.");}}catch(err){alert("Excel-filen kunde inte importeras: "+err.message)}e.target.value=""};
 render();
 if ("serviceWorker" in navigator && location.protocol.startsWith("http")) { window.addEventListener("load", () => navigator.serviceWorker.register("./service-worker.js").catch(() => {})); }
 </script>
