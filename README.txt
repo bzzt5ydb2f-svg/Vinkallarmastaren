@@ -1,5 +1,5 @@
-Vinkällarmästaren – offentlig webbversion
+Vinkällarmästaren – offentlig appversion
 
-Ladda upp index.html till roten av GitHub-arkivet. Appen startar med tom vinkällare och innehåller inga personliga vinposter.
+Ladda upp index.html direkt i GitHub-arkivets rot. Excel-importknappen läser en .xlsx-fil lokalt i webbläsaren. Excel-filen skickas inte till appservern. Excel-läsningen använder SheetJS från jsDelivr, så internet krävs för att biblioteket ska laddas.
 
-Data sparas lokalt i webbläsaren på enheten. Ingen server eller molnsynkronisering ingår. Exportera säkerhetskopior regelbundet.
+Aktivera GitHub Pages från branch main och folder /(root).
