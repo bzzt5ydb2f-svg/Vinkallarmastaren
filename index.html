@@ -40,6 +40,7 @@ form{display:grid;gap:12px}.field{display:grid;gap:5px}.field label{font-size:13
 const seed=[];
 const KEY="vinkallarmastaren-prototype-v1";
 let data;
+let importedWorkbookRows = {}; // Bevara extra kolumner och stödflikar från senast importerade Excel-fil
 try{data=JSON.parse(localStorage.getItem(KEY))||{wines:seed,tastings:[],discovered:[]}}catch(e){data={wines:[],tastings:[],discovered:[]}}
 
 // Kompletterande arbetsboksflikar. Dessa ska alltid följa med vid export.
@@ -113,10 +114,16 @@ function exportData(){download("vinkallarmastaren-sakerhetskopia.json",JSON.stri
 function exportExcel(){
  if(!window.XLSX){alert("Excel-funktionen kunde inte laddas. Kontrollera internetanslutningen och försök igen.");return;}
  const wb=XLSX.utils.book_new();
- const cellar=[["ID","Producent","Vin","Årgång","Land","Region / appellation","Druvor","Antal flaskor","Vintyp","Inköpsställe","Förvaring","Provningsstatus","Anteckningar"]];
+ const baseHeaders=["ID","Producent","Vin","Årgång","Land","Region / appellation","Druvor","Antal flaskor","Vintyp","Inköpsställe","Förvaring","Provningsstatus","Anteckningar"];
+ const priorCellar=importedWorkbookRows["Vinkällare"]||[];
+ const originalHeaders=priorCellar[0]||[];
+ const cellarHeaders=originalHeaders.length>baseHeaders.length?originalHeaders:baseHeaders;
+ const cellar=[cellarHeaders];
+ const extraById=new Map();
+ if(priorCellar.length>1){const idCol=priorCellar[0].findIndex(x=>normHeader(x)==="id");for(const row of priorCellar.slice(1)){if(idCol>=0&&row[idCol])extraById.set(String(row[idCol]),row.slice(baseHeaders.length));}}
  for(const w of data.wines){
   const p=String(w.name||"").split(" — "), r=String(w.region||"").split(" · ");
-  cellar.push([w.id||"",p[0]||"",p.slice(1).join(" — "),w.vintage||"",r.length>1?r[r.length-1]:"",r.slice(0,-1).join(" · ")||r[0]||"",w.grapes||"",Number(w.qty)||0,w.wineType==="red"?"Rött vin":w.wineType==="white"?"Vitt vin":"",w.purchasePlace||"",w.storage||"Vinkyl",w.tasted||"",w.notes||""]);
+  cellar.push([w.id||"",p[0]||"",p.slice(1).join(" — "),w.vintage||"",r.length>1?r[r.length-1]:"",r.slice(0,-1).join(" · ")||r[0]||"",w.grapes||"",Number(w.qty)||0,w.wineType==="red"?"Rött vin":w.wineType==="white"?"Vitt vin":"",w.purchasePlace||"",w.storage||"Vinkyl",w.tasted||"",w.notes||"",...(extraById.get(String(w.id))||Array(Math.max(0,cellarHeaders.length-baseHeaders.length)).fill(""))]);
  }
  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(cellar),"Vinkällare");
  const ts=[["Producent","Vin","Datum","Helhetsbetyg (1–5)","Aromer / smak","Maträtt","Passade till mat?","Kommentarer","Skulle köpa igen?"]];
@@ -127,7 +134,12 @@ function exportExcel(){
  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(ds),"Upptäckta viner");
  // Behåll matchnings- och verifieringsunderlag i varje exporterad arbetsbok.
  for(const [sheetName, rows] of Object.entries(auxiliaryExcelSheets)){
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),sheetName);
+  const preserved=importedWorkbookRows[sheetName];
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(preserved && preserved.length ? preserved : rows),sheetName);
+ }
+ // Preserve any other workbook sheets imported from the source file.
+ for(const [sheetName, rows] of Object.entries(importedWorkbookRows)){
+  if(!["Vinkällare","Provningshistorik","Upptäckta viner",...Object.keys(auxiliaryExcelSheets)].includes(sheetName) && !wb.Sheets[sheetName]) XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),sheetName);
  }
  XLSX.writeFile(wb,"Vinkallarmastaren.xlsx");
 }
@@ -161,7 +173,7 @@ function importExcelWorkbook(wb){
  if(dr.length>1){const dh=dr[0];for(const r of dr.slice(1)){const name=joinName(cell(r,dh,["producent"]),cell(r,dh,["vin"]));if(name==="Vin utan namn")continue;discovered.push({name,where:String(cell(r,dh,["var provat?","var provade du det?","plats"])||"").trim(),date:excelDate(cell(r,dh,["datum"])),rating:String(cell(r,dh,["helhetsbetyg (1–5)","helhetsbetyg (1-5)","betyg"] )||"").trim(),notes:String([cell(r,dh,["smaknotering","smaknoteringar"]),cell(r,dh,["passade till mat?"])].filter(Boolean).join("; ")),buyAgain:String(cell(r,dh,["skulle köpa själv?","köpa själv","skulle köpa igen?"])||"").trim()});}}
  return {wines,tastings,discovered};
 }
-$("#excelFile").onchange=async e=>{const f=e.target.files[0];if(!f)return;if(!/\.xlsx?$/i.test(f.name)){alert("Välj en Excel-fil som slutar på .xlsx eller .xls.");e.target.value="";return;}try{if(!window.XLSX)throw Error("Excel-läsaren kunde inte laddas. Kontrollera internetanslutningen och försök igen.");const buf=await f.arrayBuffer();const wb=XLSX.read(buf,{type:"array",cellDates:true});const imported=importExcelWorkbook(wb);if(!imported.wines.length)throw Error('Inga viner hittades i bladet "Vinkällare".');if(confirm(`Excel-filen innehåller ${imported.wines.length} viner, ${imported.wines.reduce((n,w)=>n+(Number(w.qty)||0),0)} flaskor, ${imported.tastings.length} provningsrader och ${imported.discovered.length} upptäckta viner.\n\nErsätta motsvarande data i appen med innehållet från Excel?`)){data=imported;save();tab="cellar";query="";render();alert("Excel-importen är klar.");}}catch(err){alert("Excel-filen kunde inte importeras: "+err.message)}e.target.value=""};
+$("#excelFile").onchange=async e=>{const f=e.target.files[0];if(!f)return;if(!/\.xlsx?$/i.test(f.name)){alert("Välj en Excel-fil som slutar på .xlsx eller .xls.");e.target.value="";return;}try{if(!window.XLSX)throw Error("Excel-läsaren kunde inte laddas. Kontrollera internetanslutningen och försök igen.");const buf=await f.arrayBuffer();const wb=XLSX.read(buf,{type:"array",cellDates:true});const imported=importExcelWorkbook(wb);importedWorkbookRows={};for(const name of wb.SheetNames){importedWorkbookRows[name]=rowsFromSheet(wb,name);}if(!imported.wines.length)throw Error('Inga viner hittades i bladet "Vinkällare".');if(confirm(`Excel-filen innehåller ${imported.wines.length} viner, ${imported.wines.reduce((n,w)=>n+(Number(w.qty)||0),0)} flaskor, ${imported.tastings.length} provningsrader och ${imported.discovered.length} upptäckta viner.\n\nErsätta motsvarande data i appen med innehållet från Excel?`)){data=imported;save();tab="cellar";query="";render();alert("Excel-importen är klar.");}}catch(err){alert("Excel-filen kunde inte importeras: "+err.message)}e.target.value=""};
 render();
 if ("serviceWorker" in navigator && location.protocol.startsWith("http")) { window.addEventListener("load", () => navigator.serviceWorker.register("./service-worker.js").catch(() => {})); }
 </script>
