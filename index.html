@@ -129,9 +129,12 @@ function exportExcel(){
   while(row.length<cellarHeaders.length)row.push("");
   const p=String(w.name||"").split(" — "), r=String(w.region||"").split(" · ");
   set(row,cellarHeaders,["id"],w.id||"");set(row,cellarHeaders,["producent"],p[0]||"");set(row,cellarHeaders,["vin"],p.slice(1).join(" — "));
-  set(row,cellarHeaders,["årgång"],w.vintage||"");set(row,cellarHeaders,["land"],r.length>1?r[r.length-1]:"");set(row,cellarHeaders,["region / appellation","region","appellation"],r.slice(0,-1).join(" · ")||r[0]||"");
-  set(row,cellarHeaders,["druvor"],w.grapes||"");set(row,cellarHeaders,["antal flaskor","antal","flaskor"],Number(w.qty)||0);set(row,cellarHeaders,["vintyp","vin typ","wine type","winetype"],w.wineType==="red"?"Rött vin":w.wineType==="white"?"Vitt vin":"");
-  set(row,cellarHeaders,["inköpsställe","inköpsplats","köpt hos","inköpt hos","butik"],w.purchasePlace||"");set(row,cellarHeaders,["förvaring","förvaringsplats","placering"],w.storage||"Vinkyl");set(row,cellarHeaders,["provningsstatus","provad?","smakad?"],w.tasted||"");set(row,cellarHeaders,["anteckningar","noteringar","kommentarer"],w.notes||"");cellar.push(row);
+  set(row,cellarHeaders,["årgång"],w.vintage||"");
+  // Land/region are source columns: preserve their exact values and positions.
+  // The app's combined region field cannot reliably distinguish country from appellation.
+  if(!oldRows.has(String(w.id))){set(row,cellarHeaders,["land"],r.length>1?r[r.length-1]:"");set(row,cellarHeaders,["region / appellation","region","appellation"],r.slice(0,-1).join(" · ")||r[0]||"");}
+  set(row,cellarHeaders,["druvor"],w.grapes||"");set(row,cellarHeaders,["antal flaskor","antal","flaskor"],Number(w.qty)||0);if(w.wineType) set(row,cellarHeaders,["vintyp","vin typ","wine type","winetype"],w.wineType==="red"?"Rött vin":"Vitt vin");
+  set(row,cellarHeaders,["inköpsställe","inköpsplats","köpt hos","inköpt hos","butik"],w.purchasePlace||"");set(row,cellarHeaders,["förvaring","förvaringsplats","placering"],w.storage||"Vinkyl");if(w.tasted && w.tasted!=="Ej bekräftat") set(row,cellarHeaders,["provningsstatus","provad?","smakad?"],w.tasted);set(row,cellarHeaders,["anteckningar","noteringar","kommentarer"],w.notes||"");cellar.push(row);
  }
  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(cellar),"Vinkällare");
  // Keep original tasting/discovery rows and their extra columns intact; only rebuild when no source sheet exists.
