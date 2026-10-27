@@ -116,31 +116,30 @@ function exportExcel(){
  const wb=XLSX.utils.book_new();
  const baseHeaders=["ID","Producent","Vin","Årgång","Land","Region / appellation","Druvor","Antal flaskor","Vintyp","Inköpsställe","Förvaring","Provningsstatus","Anteckningar"];
  const priorCellar=importedWorkbookRows["Vinkällare"]||[];
- const originalHeaders=priorCellar[0]||[];
- const cellarHeaders=originalHeaders.length>baseHeaders.length?originalHeaders:baseHeaders;
+ const cellarHeaders=(priorCellar[0]&&priorCellar[0].length?priorCellar[0]:baseHeaders).slice();
+ const norm=h=>String(h??"").trim().toLowerCase();
+ const idx=(headers,names)=>headers.findIndex(h=>names.includes(norm(h)));
+ const set=(row,headers,names,value)=>{let i=idx(headers,names);if(i<0){i=headers.length;headers.push(names[0]);row.push("");}while(row.length<=i)row.push("");row[i]=value??""};
  const cellar=[cellarHeaders];
- const extraById=new Map();
- if(priorCellar.length>1){const idCol=priorCellar[0].findIndex(x=>normHeader(x)==="id");for(const row of priorCellar.slice(1)){if(idCol>=0&&row[idCol])extraById.set(String(row[idCol]),row.slice(baseHeaders.length));}}
+ const oldRows=new Map();
+ const idCol=idx(cellarHeaders,["id"]);
+ for(const row of priorCellar.slice(1)){if(idCol>=0&&row[idCol]!=="")oldRows.set(String(row[idCol]),row.slice());}
  for(const w of data.wines){
+  const row=(oldRows.get(String(w.id))||Array(cellarHeaders.length).fill("")).slice();
+  while(row.length<cellarHeaders.length)row.push("");
   const p=String(w.name||"").split(" — "), r=String(w.region||"").split(" · ");
-  cellar.push([w.id||"",p[0]||"",p.slice(1).join(" — "),w.vintage||"",r.length>1?r[r.length-1]:"",r.slice(0,-1).join(" · ")||r[0]||"",w.grapes||"",Number(w.qty)||0,w.wineType==="red"?"Rött vin":w.wineType==="white"?"Vitt vin":"",w.purchasePlace||"",w.storage||"Vinkyl",w.tasted||"",w.notes||"",...(extraById.get(String(w.id))||Array(Math.max(0,cellarHeaders.length-baseHeaders.length)).fill(""))]);
+  set(row,cellarHeaders,["id"],w.id||"");set(row,cellarHeaders,["producent"],p[0]||"");set(row,cellarHeaders,["vin"],p.slice(1).join(" — "));
+  set(row,cellarHeaders,["årgång"],w.vintage||"");set(row,cellarHeaders,["land"],r.length>1?r[r.length-1]:"");set(row,cellarHeaders,["region / appellation","region","appellation"],r.slice(0,-1).join(" · ")||r[0]||"");
+  set(row,cellarHeaders,["druvor"],w.grapes||"");set(row,cellarHeaders,["antal flaskor","antal","flaskor"],Number(w.qty)||0);set(row,cellarHeaders,["vintyp","vin typ","wine type","winetype"],w.wineType==="red"?"Rött vin":w.wineType==="white"?"Vitt vin":"");
+  set(row,cellarHeaders,["inköpsställe","inköpsplats","köpt hos","inköpt hos","butik"],w.purchasePlace||"");set(row,cellarHeaders,["förvaring","förvaringsplats","placering"],w.storage||"Vinkyl");set(row,cellarHeaders,["provningsstatus","provad?","smakad?"],w.tasted||"");set(row,cellarHeaders,["anteckningar","noteringar","kommentarer"],w.notes||"");cellar.push(row);
  }
  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(cellar),"Vinkällare");
- const ts=[["Producent","Vin","Datum","Helhetsbetyg (1–5)","Aromer / smak","Maträtt","Passade till mat?","Kommentarer","Skulle köpa igen?"]];
- for(const t of data.tastings){const p=String(t.name||"").split(" — ");ts.push([p[0]||"",p.slice(1).join(" — "),t.date||"",t.rating||"",t.notes||"",t.food||"",t.context||"",t.context||"",t.buyAgain||""]);}
- XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(ts),"Provningshistorik");
- const ds=[["Producent","Vin","Var provat?","Datum","Helhetsbetyg (1–5)","Smaknotering","Passade till mat?","Skulle köpa själv?"]];
- for(const d of data.discovered){const p=String(d.name||"").split(" — ");ds.push([p[0]||"",p.slice(1).join(" — "),d.where||"",d.date||"",d.rating||"",d.notes||"","",d.buyAgain||""]);}
- XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(ds),"Upptäckta viner");
- // Behåll matchnings- och verifieringsunderlag i varje exporterad arbetsbok.
- for(const [sheetName, rows] of Object.entries(auxiliaryExcelSheets)){
-  const preserved=importedWorkbookRows[sheetName];
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(preserved && preserved.length ? preserved : rows),sheetName);
- }
- // Preserve any other workbook sheets imported from the source file.
- for(const [sheetName, rows] of Object.entries(importedWorkbookRows)){
-  if(!["Vinkällare","Provningshistorik","Upptäckta viner",...Object.keys(auxiliaryExcelSheets)].includes(sheetName) && !wb.Sheets[sheetName]) XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),sheetName);
- }
+ // Keep original tasting/discovery rows and their extra columns intact; only rebuild when no source sheet exists.
+ for(const name of ["Provningshistorik","Upptäckta viner"]){const rows=importedWorkbookRows[name];if(rows&&rows.length){XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),name);}else if(name==="Provningshistorik"){
+  const ts=[["Producent","Vin","Datum","Helhetsbetyg (1–5)","Aromer / smak","Maträtt","Passade till mat?","Kommentarer","Skulle köpa igen?"]];for(const t of data.tastings){const p=String(t.name||"").split(" — ");ts.push([p[0]||"",p.slice(1).join(" — "),t.date||"",t.rating||"",t.notes||"",t.food||"",t.context||"",t.context||"",t.buyAgain||""]);}XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(ts),name);
+ }else{const ds=[["Producent","Vin","Var provat?","Datum","Helhetsbetyg (1–5)","Smaknotering","Passade till mat?","Skulle köpa själv?"]];for(const d of data.discovered){const p=String(d.name||"").split(" — ");ds.push([p[0]||"",p.slice(1).join(" — "),d.where||"",d.date||"",d.rating||"",d.notes||"","",d.buyAgain||""]);}XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(ds),name);}}
+ for(const [sheetName, defaults] of Object.entries(auxiliaryExcelSheets)){const rows=importedWorkbookRows[sheetName];XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows&&rows.length?rows:defaults),sheetName);}
+ for(const [sheetName,rows] of Object.entries(importedWorkbookRows)){if(!wb.Sheets[sheetName])XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),sheetName);}
  XLSX.writeFile(wb,"Vinkallarmastaren.xlsx");
 }
 function download(name,content,type){const a=document.createElement("a"),url=URL.createObjectURL(new Blob([content],{type}));a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
